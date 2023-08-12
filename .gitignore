@@ -1,0 +1,4 @@
+ret-*
+*.sh
+**/__pycache__
+**/dataset
