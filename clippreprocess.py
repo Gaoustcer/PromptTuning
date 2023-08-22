@@ -1,18 +1,19 @@
-from dataset import dataset
-# for image_class
-import clip
+from dataset import model,preprocess,dataset
+save_embeddings = []
+labels = []
 import torch
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model,preprocess = clip.load("ViT-B/32",device)
-image_embedding = []
-label_embedding = []
+import os
 from tqdm import tqdm
-for imgs,labels in tqdm(dataset):
-    image_embedding.append(model.encode_image(
-        preprocess(imgs).unsqueeze(0).to(device)
-    ))
-    label_embedding.append(labels)
-image_embedding = torch.stack(image_embedding,dim=0)
-label_embedding = torch.LongTensor(label_embedding)
-torch.save(image_embedding,'dataset/images.pth')
-torch.save(label_embedding,"dataset/labels.pth")
+model.eval()
+imgs = torch.load('./dataset/imgs.pt').cuda()
+embedding = model.encode_image(imgs)
+torch.save(embedding,"./dataset/embedding.pt")
+# for img,label in tqdm(dataset):
+#     save_embeddings.append(preprocess(img))
+#     # save_embeddings.append(model.encode_image(preprocess(img).cuda().unsqueeze(0)).squeeze())
+#     labels.append(label)
+# labels = torch.tensor(labels)
+# save_embeddings = torch.stack(save_embeddings,dim=0)
+# rootdir = "./dataset/"
+# torch.save(labels,os.path.join(rootdir,"labels.pt"))
+# torch.save(save_embeddings,os.path.join(rootdir,"imgs.pt"))
