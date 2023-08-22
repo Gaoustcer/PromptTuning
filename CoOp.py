@@ -33,16 +33,20 @@ class SimplePromplearning(nn.Module):
         self.classnames = [cname.replace("_"," ") for cname in classes]
         self.prompts = [ctx_init + " " + description for description in self.classnames]
         self.ctx_dim = model.ln_final.weight.shape[0]
-        optimparam = torch.empty(len(classes),ctx_len,self.ctx_dim)
+        optimparam = torch.zeros(len(classes),ctx_len,self.ctx_dim).to(device)
         self.optimparam = nn.Parameter(optimparam)
-        self.paddingparam = torch.zeros(len(classes),model.context_length - ctx_len,self.ctx_dim)
+        self.paddingparam = torch.zeros(len(classes),model.context_length - ctx_len,self.ctx_dim,device=device,dtype=torch.float32).requires_grad_(False)
         # clipresult = clip.tokenize(self.prompts)
-        self.tokenprompt = clip.tokenize(self.prompts)
+        self.tokenprompt = clip.tokenize(self.prompts).to(device)
         self.tokenembedding = model.token_embedding(self.tokenprompt)
 
 
     def forward(self):
-        simpleadd = torch.concat((self.optimparam,self.paddingparam),dim = 1)
+        # print(self.optimparam)
+        # print(self.paddingparam)
+        optimalparam = self.optimparam
+        paddingparam = self.paddingparam
+        simpleadd = torch.concat((optimalparam,paddingparam),dim = 1)
         return self.tokenembedding + simpleadd 
                 
 class PromptLearning(nn.Module):
@@ -51,9 +55,9 @@ class PromptLearning(nn.Module):
         n_cls = len(classes)
         dtype = model.dtype
         ctx_dim = model.ln_final.weight.shape[0]
-        prompt = clip.tokenize(ctx_init).to(device)
+        prompt = clip.tokenize([ctx_init] * n_cls).to(device)
         embedding = model.token_embedding(prompt).detach()
-        optimized_ctx = embedding[0,1:1 + n_ctx,:]
+        optimized_ctx = embedding[:,1:1 + n_ctx,:]
         self.optimized_ctx = nn.Parameter(optimized_ctx)
         classnames = []
         for cname in classes:
@@ -68,10 +72,10 @@ class PromptLearning(nn.Module):
         self.n_cls = n_cls
 
     def forward(self):
-        ctx = self.optimized_ctx.unsqueeze(0).repeat(self.n_cls,1,1)
+        # ctx = self.optimized_ctx.unsqueeze(0).repeat(self.n_cls,1,1)
         # print(self.token_prefix.shape,self.token_suffix.shape,ctx.shape)
         return torch.concat(
-            [self.token_prefix,ctx,self.token_suffix],dim=1
+            [self.token_prefix,self.optimized_ctx,self.token_suffix],dim=1
         )
         # Input to the transformer should be [batchsize,sequencelen,ctx_dim]
 # class CoOpSimple(object):
@@ -88,7 +92,11 @@ class CoOp(object):
         dataset = Clipdataset()
         self.totallen = len(dataset)        
         self.dataloader = DataLoader(dataset,batch_size=32)
-        self.promptlearner = SimplePromplearning().to(device)
+        self.promptlearner = PromptLearning()
+        # self.promptlearner = SimplePromplearning().to(device)
+        # print("paramter ")
+        # for param in self.promptlearner.parameters():
+            # print("paramter of prompt learner",param)
         self.optim = torch.optim.Adam(self.promptlearner.parameters(),lr = 4e-3)
         self.transformer = model.transformer
         self.position_embedding = model.positional_embedding
@@ -117,7 +125,7 @@ class CoOp(object):
 
     def learn(self):
         for epoch in range(self.EPOCH):
-            print("acc in epoch",epoch,self._validate())
+            # print("acc in epoch",epoch,self._validate())
             for imgs,labels in tqdm(self.dataloader):
                 self.optim.zero_grad()
                 img_emb = model.encode_image(imgs)
@@ -126,8 +134,11 @@ class CoOp(object):
                 text_emb = F.normalize(text_emb,dim = -1)
                 score = model.logit_scale.exp() * img_emb @ text_emb.t()
                 loss = F.cross_entropy(score,labels)
+                # print("loss is",loss)
                 loss.backward()
+                # print("backward loss")
                 self.optim.step()
+            print("acc in epoch",epoch,self._validate())
 def raw_prompt():
     prompts = ["{}.".format(cname) for cname in classes]
     prompts = clip.tokenize(prompts).to(device)
@@ -141,7 +152,10 @@ def raw_prompt():
         count += accuracybatch(text_embedding,img_emb,labels)
     print("raw performance acc rate",count/10000)
 if __name__ == "__main__":
-    raw_prompt()
+    # spl = SimplePromplearning()
+    # for param in spl.parameters():
+        # print("parameter is",param,param.shape)
+    # raw_prompt()
     coop = CoOp(128)
     coop.learn()
     # tokenprompt = PromptLearning()
