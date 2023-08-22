@@ -8,6 +8,7 @@ model.eval()
 imgs = torch.load('./dataset/imgs.pt').cuda()
 embedding = model.encode_image(imgs)
 torch.save(embedding,"./dataset/embedding.pt")
+
 # for img,label in tqdm(dataset):
 #     save_embeddings.append(preprocess(img))
 #     # save_embeddings.append(model.encode_image(preprocess(img).cuda().unsqueeze(0)).squeeze())
