@@ -125,7 +125,8 @@ class CoOp(object):
 
     def learn(self):
         for epoch in range(self.EPOCH):
-            # print("acc in epoch",epoch,self._validate())
+            print("acc in epoch",epoch,self._validate())
+            torch.save(self.promptlearner.optimized_ctx,"./dataset/optim.pt")
             for imgs,labels in tqdm(self.dataloader):
                 self.optim.zero_grad()
                 img_emb = model.encode_image(imgs)
@@ -138,7 +139,7 @@ class CoOp(object):
                 loss.backward()
                 # print("backward loss")
                 self.optim.step()
-            print("acc in epoch",epoch,self._validate())
+            # print("acc in epoch",epoch,self._validate())
 def raw_prompt():
     prompts = ["{}.".format(cname) for cname in classes]
     prompts = clip.tokenize(prompts).to(device)
@@ -152,12 +153,15 @@ def raw_prompt():
         count += accuracybatch(text_embedding,img_emb,labels)
     print("raw performance acc rate",count/10000)
 if __name__ == "__main__":
+    optim = torch.load("./dataset/optim.pt",map_location="cpu")
+    # optim = optim + model.positional_embedding
+    
     # spl = SimplePromplearning()
     # for param in spl.parameters():
         # print("parameter is",param,param.shape)
     # raw_prompt()
-    coop = CoOp(128)
-    coop.learn()
+    # coop = CoOp(128)
+    # coop.learn()
     # tokenprompt = PromptLearning()
     # for param in tokenprompt.parameters():
         # print(param.shape)
